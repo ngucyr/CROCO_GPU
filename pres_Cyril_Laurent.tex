@@ -1,0 +1,124 @@
+\documentclass{beamer}
+\usetheme{Madrid}
+\usecolortheme{beaver}
+\usepackage{listings}
+\title{Initiation à CROCO sur GPU avec OpenACC}
+\author{Cyril Nguyen, Laurent Debreu}
+\date{}
+\AtBeginSection[]
+{
+	\begin{frame}
+		\frametitle{Table of Contents}
+		\tableofcontents[currentsection]
+	\end{frame}
+}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\lstdefinestyle{mystyle}{
+	backgroundcolor=\color{backcolour},   
+	commentstyle=\color{codegreen},
+	keywordstyle=\color{magenta},
+	numberstyle=\tiny\color{codegray},
+	stringstyle=\color{codepurple},
+	basicstyle=\ttfamily\tiny,
+	breakatwhitespace=false,         
+	breaklines=true,                 
+	captionpos=b,                    
+	keepspaces=true,                 
+	numbers=left,                    
+	numbersep=3pt,                  
+	showspaces=false,                
+	showstringspaces=false,
+	showtabs=false,                  
+	tabsize=2
+}
+\lstset{language=Fortran,style=mystyle}
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\frame{\titlepage}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}{Plan}
+	\tableofcontents
+\end{frame}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Un petit exemple}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}[fragile]
+	\frametitle{Un petit exemple}
+	\tiny
+\begin{columns}
+\column{0.4\textwidth}	
+\begin{lstlisting}
+!$acc data copy(zeta,A2d)
+do n=1,nloop
+  call main()
+enddo
+!$acc end data
+
+subroutine main
+
+do tile=1,nbtiles
+  call compute_rhs_on_cpu(tile)
+!$acc update device(rhs_3d_avg) &
+!$acc async(synchro_rhs3d)
+enddo
+
+do iif=1,nfast
+  do tile=1,nbtiles
+    call step2d(tile)
+  enddo
+enddo
+
+do tile=1,nbtiles
+  call compute_rhs3davg_on_host(tile)
+!$acc update device(rhs_3d_avg)
+enddo
+
+!$acc wait(synchro_zeta)
+end subroutine main
+\end{lstlisting}
+\column{0.55\textwidth}
+\tiny
+\begin{lstlisting}
+subroutine step2d(tile)
+  call step2d_tile(Istr,Iend,Jstr,Jend,A2d(1,1))
+end subroutine step2d
+
+subroutine step2d_tile(Istr,Iend,Jstr,Jend, &
+                       rhs_3d_avg)
+real,dimension(:,:) :: rhs_3d_avg
+!$acc kernels default(present)
+if (iif==1) then
+!$acc wait(syncrho_rhs3d)
+endif
+do j=Jstr,Jend
+  do i=Istr,Iend
+    zeta(i,j) = zeta(i,j) + dt*rhs_3d_avg(i,j)
+  enddo
+enddo
+if (iif ==nfast) then
+!$acc update host zeta async(synchro_zeta)
+endif
+!$acc end kernels
+end subroutine step2d_tile
+
+\end{lstlisting}
+\end{columns}
+\end{frame}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Compilation}
+\begin{frame}{Compilateurs}
+\end{frame}
+\begin{frame}{Diagnostics openacc lors de la compilation}
+\end{frame}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Profiling}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}{Détecter les mouvements de données CPU $\leftrightarrow$ GPU}
+\end{frame}
+\begin{frame}{Informations sur l'optimisation des boucles}
+\end{frame}
+\end{document}
